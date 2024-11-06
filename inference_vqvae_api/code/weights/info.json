@@ -1,0 +1,23 @@
+[
+    {
+        "weight_id": 0,
+        "name": "test",
+        "info": null,
+        "file_name": "best.pt",
+        "file_path": "./weights/0"
+    },
+    {
+        "weight_id": 1,
+        "name": "test",
+        "info": null,
+        "file_name": "best.pt",
+        "file_path": "./weights/1"
+    },
+    {
+        "weight_id": 2,
+        "name": "test3",
+        "info": null,
+        "file_name": "best.pt",
+        "file_path": "./weights/2"
+    }
+]
