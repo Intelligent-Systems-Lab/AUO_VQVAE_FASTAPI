@@ -251,37 +251,7 @@ async def post_weight(response: Response, weight: UploadFile, name: str, info: U
     logger.info("post_weight!")
     return {"weight_id": w["weight_id"], "error_code": error_code}
 
-@app.get("/weight/{weight_id}")
-async def download_weight(response: Response, background_tasks: BackgroundTasks, weight_id: int):
-    """Download the zip file contains the weights
 
-    Args:
-        response (Response): response
-        background_tasks (BackgroundTasks): Do something after response
-        weight_id (int): The weights of weight_id to be downloaded
-
-    Returns:
-        return:
-            error 1: [int weight_id, error_code]
-            error 0: zip file
-    """
-    error_code = 0
-    w_dir_path = os.path.join(weight_dir, str(weight_id))
-    zip_path = os.path.join(weight_dir, "{}.zip".format(str(weight_id)))
-
-    if os.path.isdir(w_dir_path):
-        files = os.listdir(w_dir_path)
-        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zfile:
-            for file in files:
-                zfile.write(os.path.join(w_dir_path, file))
-    else:
-        error_code = 1
-
-    if error_code != 0:
-        return {"weight_id": weight_id, "error_code": error_code, "error_msg": "Model is not exist."}
-    else:
-        background_tasks.add_task(_delayed_remove, zip_path, delay=100)
-        return FileResponse(zip_path,media_type='application/zip',filename=f'{weight_id}.zip')
 
 @app.delete("/weight/{weight_id}")
 async def delete_weight(response: Response, weight_id: int):
@@ -388,6 +358,7 @@ async def post_inference(response: Response,
     background_tasks: BackgroundTasks,
     name: str, data: UploadFile, 
     model_id: int,
+    device: Device = "cpu",
     hidden_size: Union[int, None] = None,
     k: Union[int, None] = None,
     negative_sample_number: Union[int, None] = None,
@@ -424,7 +395,11 @@ async def post_inference(response: Response,
         #     os.mkdir(weight_dir)
         # job = {"job_id": None, "pid": None, "name": name, "info": info, "type": "train", "status": None}
             
-        print("step 1. Weight management passed")
+        if device == 'cpu':
+            device = "cpu"
+        else:
+            if torch.cuda.is_available():
+                device = "cuda"
 
         # Download the dataset
         if not os.path.exists(data_dir):
@@ -456,6 +431,7 @@ async def post_inference(response: Response,
         config['data_dir'] = data_path
         config['batch_size'] = batch_size if batch_size is not None else config['batch_size']
         config['hidden_size'] = hidden_size if hidden_size is not None else config['hidden_size']
+        config['device'] = device if device is not None else config['device']
         config['k'] = k if k is not None else config['k']
         config['negative_sample_number'] = negative_sample_number if negative_sample_number is not None else config['negative_sample_number']
         config['model_path'] = model_info["model_path"]
@@ -488,10 +464,13 @@ async def post_inference(response: Response,
         background_tasks.add_task(_delayed_remove_dir, data_path, delay=10)
         background_tasks.add_task(_delayed_remove, zip_file_path, delay=10)
         
+        with open('./status.json', 'r') as f:
+            idle = json.load(f)
         for _ in range(max_retries):
-            if os.path.exists(zip_file_path):
-                # Zip 檔案找到，返回文件
-                
+            #重新讀取狀態
+            with open('./status.json', 'r') as f:
+                idle = json.load(f)
+            if idle['completed'] == True:
                 return FileResponse(zip_file_path, media_type='application/zip', filename=f"{name}.zip")
             else:
                 # 如果檔案還沒生成，等待並重試

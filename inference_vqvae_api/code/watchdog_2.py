@@ -146,9 +146,12 @@ if __name__ == "__main__":
 
     # print(os.getcwd())
 
-    # with open('./status.json', 'w') as f:
-    #     pass
-
+    with open('./status.json', 'w') as f:
+        pass
+    init_status = dict()
+    init_status['completed'] = False
+    with open('./status.json', 'w') as f:
+        json.dump(init_status, f)   
     pid = subprocess.Popen(["sh", "./run.sh"], shell=False)
 
     # observer = Observer()

@@ -10,7 +10,7 @@ import torch.nn.functional as F
 from argparse import Namespace
 import yaml
 import shutil
-
+import json
 def load_model(args):
     # 加載模型
     model = VectorQuantizedVAE(input_dim=1, dim=args.hidden_size, K=args.k).to(args.device)
@@ -197,6 +197,10 @@ def main(args):
         # 壓縮資料夾
         shutil.make_archive(img_folder, 'zip', img_folder)
         
+        init_status = dict()
+        init_status['completed'] = True
+        with open('./status.json', 'w') as f:
+            json.dump(init_status, f)
 
     
 

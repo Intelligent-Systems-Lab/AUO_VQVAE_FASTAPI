@@ -1,4 +1,4 @@
-exp_name: test8886
+exp_name: ttttttt
 model_path: ./weights/0/best.pt
 data_dir: ./data/testapi
 hidden_size: 512
@@ -6,4 +6,4 @@ k: 1024
 batch_size: 1
 negative_sample_number: 10
 num_workers: 2
-device: cuda
+device: cpu
