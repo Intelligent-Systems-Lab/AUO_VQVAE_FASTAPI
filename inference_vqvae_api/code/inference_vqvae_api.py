@@ -32,6 +32,7 @@ from modules import VectorQuantizedVAE
 import torch.nn.functional as F
 from argparse import Namespace
 import subprocess
+from fastapi.responses import StreamingResponse
 
 logging.basicConfig(
     level=logging.INFO,
@@ -157,7 +158,9 @@ def _get_weight_index(weight_id):
     else:
         return w_idx, weight_list[w_idx]
 
-
+def iterfile(file_path):
+    with open(file_path, "rb") as file_like:
+        yield from file_like
 def _delayed_remove(path: str, delay: int = 10):
     time.sleep(delay)
     os.remove(path)
@@ -376,25 +379,10 @@ async def post_inference(response: Response,
 
     """
     with lock:
-        # with open('./status.json', 'r') as f:
-        #     idle = json.load(f)
-        
-        # if idle['idle'] == False:
-        #     return {"error_code": 1, "error_msg": "Another job is training or testing."} 
 
-        # init_status = dict()
-        # init_status['status'] = "inferenceing"
-        # init_status['idle'] = False
-        # init_status['completed'] = False
-        # with open('./status.json', 'w') as f:
-        #     json.dump(init_status, f)
         share_model_index = next((id for id, item in enumerate(share_models) if item["model_id"] == model_id), None)
         model_info = share_models[share_model_index]
         print(model_info)
-        # if not os.path.exists(weight_dir):
-        #     os.mkdir(weight_dir)
-        # job = {"job_id": None, "pid": None, "name": name, "info": info, "type": "train", "status": None}
-            
         if device == 'cpu':
             device = "cpu"
         else:
@@ -456,8 +444,8 @@ async def post_inference(response: Response,
 
         # 定義重試機制，等待壓縮檔案完成
         zip_file_path = f"./dataset/{name}.zip"
-        max_retries = 5  # 重試次數
-        wait_time = 5    # 每次重試等待的秒數
+        max_retries = 20  # 重試次數
+        wait_time = 20    # 每次重試等待的秒數
         img_folder = os.path.join('./dataset', name)
         time.sleep(wait_time)
         background_tasks.add_task(_delayed_remove_dir, img_folder, delay=10)
@@ -479,6 +467,7 @@ async def post_inference(response: Response,
         # 若嘗試數次後檔案依然不存在，返回錯誤訊息
         response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
         return {"error_code": 4, "error_msg": "Zip file not found after waiting."}
+
 
 
 if __name__ == "__main__":

@@ -1,9 +1,9 @@
-exp_name: ttttttt
+exp_name: bbb78
 model_path: ./weights/0/best.pt
-data_dir: ./data/testapi
+data_dir: ./data/api_vqvae_test_data
 hidden_size: 512
 k: 1024
-batch_size: 1
-negative_sample_number: 10
+batch_size: 10
+negative_sample_number: 100
 num_workers: 2
-device: cpu
+device: cuda
