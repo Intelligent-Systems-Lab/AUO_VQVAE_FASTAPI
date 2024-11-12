@@ -33,6 +33,7 @@ import torch.nn.functional as F
 from argparse import Namespace
 import subprocess
 from fastapi.responses import StreamingResponse
+from fastapi import HTTPException
 
 logging.basicConfig(
     level=logging.INFO,
@@ -282,78 +283,78 @@ async def delete_weight(response: Response, weight_id: int):
 
     return {"error_code": error_code}
 
-@app.post("/weight/load/{weight_id}")
-async def post_load_weight(response: Response, weight_id: int):
-    """Load the weight of weight_id
+# @app.post("/weight/load/{weight_id}")
+# async def post_load_weight(response: Response, weight_id: int):
+#     """Load the weight of weight_id
 
-    Args:
-        response (Response): response
-        weight_id (int): the weight of weight_id to be loaded
-    Returns:
-        int: error_code
-    """
+#     Args:
+#         response (Response): response
+#         weight_id (int): the weight of weight_id to be loaded
+#     Returns:
+#         int: error_code
+#     """
 
-    weight_list = _get_weight_list()
+#     weight_list = _get_weight_list()
 
-    if _check_weight_list(weight_list, weight_id):
-        id, weight_list = _get_weight_index(weight_id)
-        model_info={
-            "model_id": None,
-            "name": str(weight_list['name']),
-            "model_path": str(os.path.join(weight_list['file_path'], weight_list['file_name'])),
-        }
-        #model = _load_model(str(weight_list['file_path']), weight_list)
-        #model_list = {"model_id" : None, "name" : str(weight_list['name']), "model" : model.to('cpu')}
-        model_id = _critical_section_share_models(model_info)
-    else:
-        return {"error_code": 1, "error_msg": "Model is not exist."}
+#     if _check_weight_list(weight_list, weight_id):
+#         id, weight_list = _get_weight_index(weight_id)
+#         model_info={
+#             "model_id": None,
+#             "name": str(weight_list['name']),
+#             "model_path": str(os.path.join(weight_list['file_path'], weight_list['file_name'])),
+#         }
+#         #model = _load_model(str(weight_list['file_path']), weight_list)
+#         #model_list = {"model_id" : None, "name" : str(weight_list['name']), "model" : model.to('cpu')}
+#         model_id = _critical_section_share_models(model_info)
+#     else:
+#         return {"error_code": 1, "error_msg": "Model is not exist."}
 
-    return {"error_code": 0, "model_id": model_id}
+#     return {"error_code": 0, "model_id": model_id}
 
-@app.get("/weight/load/")
-async def get_load_weight(response: Response):
-    """Get the model list
-    Args:
-        response (Response): response
-    Returns:
-        loaded models: models_list, int: error_code
-    """
-    models_list = []
-    for i in share_models:
-        temp = {"model_id" : i['model_id'], "name" :str(i['name']), "model_path": str(i['model_path']) }
-        models_list.append(temp) 
-    return {"loaded models": models_list, "error_code": 0}
+# @app.get("/weight/load/")
+# async def get_load_weight(response: Response):
+#     """Get the model list
+#     Args:
+#         response (Response): response
+#     Returns:
+#         loaded models: models_list, int: error_code
+#     """
+#     models_list = []
+#     for i in share_models:
+#         temp = {"model_id" : i['model_id'], "name" :str(i['name']), "model_path": str(i['model_path']) }
+#         models_list.append(temp) 
+#     return {"loaded models": models_list, "error_code": 0}
 
-def find(weight_id):
-    model_exist = next((item for item in share_models if item["model_id"] == weight_id), None)
-    return model_exist
+# def find(weight_id):
+#     model_exist = next((item for item in share_models if item["model_id"] == weight_id), None)
+#     return model_exist
 
-def delete(weight_id):
-    model_index = next((id for id, item in enumerate(share_models) if item["model_id"] == weight_id), None)
-    del share_models[model_index]
+# def delete(weight_id):
+#     model_index = next((id for id, item in enumerate(share_models) if item["model_id"] == weight_id), None)
+#     del share_models[model_index]
 
-@app.delete("/weight/load/{weight_id}")
-async def delete_load_weight(response: Response, model_id: int):
-    """Unload the model
+# @app.delete("/weight/load/{weight_id}")
+# async def delete_load_weight(response: Response, model_id: int):
+#     """Unload the model
 
-    Args:
-        response (Response): response
+#     Args:
+#         response (Response): response
 
-    Returns:
-        int: error_code
-    """
+#     Returns:
+#         int: error_code
+#     """
 
-    model_exist = find(model_id)
-    if model_exist is not None:
-        delete(model_id)
-        global process_model
-        process_model = share_models[:]
-        print(len(process_model))
-        torch.cuda.empty_cache()
-        logger.info("delete_load_weight!")
-        return {"error_code": 0}
-    else:
-        return {"error_code": 1, "error_code": "Model is not loaded in the memory."}
+#     model_exist = find(model_id)
+#     if model_exist is not None:
+#         delete(model_id)
+#         global process_model
+#         process_model = share_models[:]
+#         print(len(process_model))
+#         torch.cuda.empty_cache()
+#         logger.info("delete_load_weight!")
+#         return {"error_code": 0}
+#     else:
+#         return {"error_code": 1, "error_code": "Model is not loaded in the memory."}
 
 
 @app.post("/inference/")
@@ -378,95 +379,110 @@ async def post_inference(response: Response,
         job_id: the job_id of the trianing process
 
     """
-    with lock:
-
-        share_model_index = next((id for id, item in enumerate(share_models) if item["model_id"] == model_id), None)
-        model_info = share_models[share_model_index]
-        print(model_info)
-        if device == 'cpu':
-            device = "cpu"
-        else:
-            if torch.cuda.is_available():
-                device = "cuda"
-
-        # Download the dataset
-        if not os.path.exists(data_dir):
-            os.mkdir(data_dir)
-
-        data_zip_path = os.path.join(data_dir, str(data.filename))
-        async with aiofiles.open(data_zip_path, mode="wb") as out_file:
-            content = await data.read()
-            await out_file.write(content)
+    with open(weight_info, 'r') as f:
+        weight_list = json.load(f)
+        print(weight_info)
         
-        # Check if it is a zip file
-        if not zipfile.is_zipfile(data_zip_path):
-            os.remove(data_zip_path)
-            response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
-            return {"error_code": 3, "error_msg": "Upload file is not a zip file."}
+    model_info = next((item for item in weight_list if item['weight_id'] == model_id), None)
+    print(model_info)
+    if model_info is None:
+        response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+        return {"error_code": 1, "error_msg": "Model is not exist."}
+    if device == 'cpu':
+        device = "cpu"
+    else:
+        if torch.cuda.is_available():
+            device = "cuda"
+
+    # Download the dataset
+    if not os.path.exists(data_dir):
+        os.mkdir(data_dir)
+
+    data_zip_path = os.path.join(data_dir, str(data.filename))
+    async with aiofiles.open(data_zip_path, mode="wb") as out_file:
+        content = await data.read()
+        await out_file.write(content)
         
-        # Extract files
-        with zipfile.ZipFile(data_zip_path, mode='r') as zip_file:
-            zip_file.extractall(data_dir)
+    # Check if it is a zip file
+    if not zipfile.is_zipfile(data_zip_path):
         os.remove(data_zip_path)
-        data_path, _ = os.path.splitext(data_zip_path)
-
-        print("step 2. Dataset managemet passed")
+        response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+        return {"error_code": 3, "error_msg": "Upload file is not a zip file."}
         
-        with open('./configs/config.yaml', 'r') as f:
-                config = yaml.load(f, Loader = yaml.FullLoader)
+    # Extract files
+    with zipfile.ZipFile(data_zip_path, mode='r') as zip_file:
+        zip_file.extractall(data_dir)
+    os.remove(data_zip_path)
+    data_path, _ = os.path.splitext(data_zip_path)
 
-        config['exp_name'] = name if name is not None else config['exp_name']
-        config['data_dir'] = data_path
-        config['batch_size'] = batch_size if batch_size is not None else config['batch_size']
-        config['hidden_size'] = hidden_size if hidden_size is not None else config['hidden_size']
-        config['device'] = device if device is not None else config['device']
-        config['k'] = k if k is not None else config['k']
-        config['negative_sample_number'] = negative_sample_number if negative_sample_number is not None else config['negative_sample_number']
-        config['model_path'] = model_info["model_path"]
+    print("step 2. Dataset managemet passed")
         
-        with open('./configs/config.yaml', 'w') as f:
-            yaml.dump(config, f, sort_keys=False)
+    with open('./configs/config.yaml', 'r') as f:
+            config = yaml.load(f, Loader = yaml.FullLoader)
 
-        print("step 3. Config management passed")
-
-        # Call the watch dog program
-        proc = subprocess.Popen(["python", "watchdog_2.py"], shell=False, preexec_fn=os.setsid)
-        print("step 4. call watch_dog.py")
+    config['exp_name'] = name if name is not None else config['exp_name']
+    config['data_dir'] = data_path
+    config['batch_size'] = batch_size if batch_size is not None else config['batch_size']
+    config['hidden_size'] = hidden_size if hidden_size is not None else config['hidden_size']
+    config['device'] = device if device is not None else config['device']
+    config['k'] = k if k is not None else config['k']
+    config['negative_sample_number'] = negative_sample_number if negative_sample_number is not None else config['negative_sample_number']
+    config['model_path'] = str(os.path.join(model_info['file_path'], model_info['file_name']))
         
-        # 使用 communicate() 確保進程完成執行
-        stdout, stderr = proc.communicate()
+    with open('./configs/config.yaml', 'w') as f:
+        yaml.dump(config, f, sort_keys=False)
 
-        # 檢查進程的返回碼是否為 0，表示成功執行
-        if proc.returncode != 0:
-            print(f"watchdog_2.py 執行失敗: {stderr}")
-            response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
-            return {"error_code": 5, "error_msg": "Error occurred during execution of watchdog_2.py."}
+    print("step 3. Config management passed")
 
-        # 定義重試機制，等待壓縮檔案完成
-        zip_file_path = f"./dataset/{name}.zip"
-        max_retries = 20  # 重試次數
-        wait_time = 20    # 每次重試等待的秒數
-        img_folder = os.path.join('./dataset', name)
-        time.sleep(wait_time)
-        background_tasks.add_task(_delayed_remove_dir, img_folder, delay=10)
-        background_tasks.add_task(_delayed_remove_dir, data_path, delay=10)
-        background_tasks.add_task(_delayed_remove, zip_file_path, delay=10)
+    # Call the watch dog program
+    proc = subprocess.Popen(["python", "watchdog_2.py"], shell=False, preexec_fn=os.setsid)
+    print("step 4. call watch_dog.py")
         
+    # 使用 communicate() 確保進程完成執行
+    stdout, stderr = proc.communicate()
+
+    # 檢查進程的返回碼是否為 0，表示成功執行
+    if proc.returncode != 0:
+        print(f"watchdog_2.py 執行失敗: {stderr}")
+        response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+        return {"error_code": 5, "error_msg": "Error occurred during execution of watchdog_2.py."}
+
+    # 定義重試機制，等待壓縮檔案完成
+    zip_file_path = f"./dataset/{name}.zip"
+    max_retries = 20  # 重試次數
+    wait_time = 10    # 每次重試等待的秒數
+    img_folder = os.path.join('./dataset', name)
+    time.sleep(10)
+    background_tasks.add_task(_delayed_remove_dir, img_folder, delay=10)
+    background_tasks.add_task(_delayed_remove_dir, data_path, delay=10)
+    background_tasks.add_task(_delayed_remove, zip_file_path, delay=10)
+        
+    with open('./status.json', 'r') as f:
+        idle = json.load(f)
+    for _ in range(max_retries):
+        #重新讀取狀態
         with open('./status.json', 'r') as f:
             idle = json.load(f)
-        for _ in range(max_retries):
-            #重新讀取狀態
-            with open('./status.json', 'r') as f:
-                idle = json.load(f)
-            if idle['completed'] == True:
-                return FileResponse(zip_file_path, media_type='application/zip', filename=f"{name}.zip")
-            else:
-                # 如果檔案還沒生成，等待並重試
-                time.sleep(wait_time)
+        print(idle)
+        if idle['completed'] == True:
+            # return FileResponse(zip_file_path, media_type='application/zip', filename=f"{name}.zip")
+            time.sleep(5)  # 確保文件生成完成
+            try:
+                logger.debug("Returning file response")
+                print("zip file generate")
+                response = StreamingResponse(iterfile(zip_file_path), media_type="application/zip")
+                response.headers["Content-Disposition"] = f"attachment; filename={name}.zip"
+                return response
+            except Exception as e:
+                logger.error(f"Error returning FileResponse: {e}")
+                raise HTTPException(status_code=500, detail="Error returning file.")
+        else:
+            # 如果檔案還沒生成，等待並重試
+            time.sleep(wait_time)
 
-        # 若嘗試數次後檔案依然不存在，返回錯誤訊息
-        response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
-        return {"error_code": 4, "error_msg": "Zip file not found after waiting."}
+    # 若嘗試數次後檔案依然不存在，返回錯誤訊息
+    response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+    return {"error_code": 4, "error_msg": "Zip file not found after waiting."}
 
 
 
