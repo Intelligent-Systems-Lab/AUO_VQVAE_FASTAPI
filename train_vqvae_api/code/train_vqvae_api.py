@@ -28,7 +28,7 @@ import signal
 import pandas as pd
 from sklearn.model_selection import StratifiedShuffleSplit
 import subprocess
-
+from fastapi import HTTPException
 lock = Lock()
 app = FastAPI()
 weight_dir = "./weights"
@@ -47,6 +47,10 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
+def iterfile(file_path):
+    with open(file_path, mode="rb") as file:
+        yield from file
+        
 def _delayed_remove(path: str, delay: int = 10):
     time.sleep(delay)
     os.remove(path)
@@ -385,10 +389,21 @@ async def get_train_result(response: Response, background_tasks: BackgroundTasks
         print("Generated zip_path: %s", zip_path)
         #background_tasks.add_task(os.remove, zip_path)
         background_tasks.add_task(_delayed_remove, zip_path, delay=100)
+        # if os.path.exists(zip_path):
+        #     time.sleep(5) #sleep for zip generate
+        #     logger.debug("patn exist")
+        #     print("path exist")
+        #     return FileResponse(zip_path, media_type='application/zip', filename=f'{job_id}.zip')
         if os.path.exists(zip_path):
-            logger.debug("patn exist")
-            print("path exist")
-            return FileResponse(zip_path, media_type='application/zip', filename=f'{job_id}.zip')
+            time.sleep(5)  # 確保文件生成完成
+            try:
+                logger.debug("Returning file response")
+                response = StreamingResponse(iterfile(zip_path), media_type="application/zip")
+                response.headers["Content-Disposition"] = f"attachment; filename={job_id}.zip"
+                return response
+            except Exception as e:
+                logger.error(f"Error returning FileResponse: {e}")
+                raise HTTPException(status_code=500, detail="Error returning file.")
         else:
             return {"error_code": 3, "error_msg": f"Zip file {job_id}.zip not found"}
         #return FileResponse(zip_path,media_type='application/zip',filename=f'{job_id}.zip')

@@ -20,4 +20,7 @@ ENV PATH=/opt/conda/envs/vqvae/bin:$PATH
 WORKDIR /code
 
 # 啟動命令
-CMD ["uvicorn", "inference_vqvae_api:app", "--host", "0.0.0.0", "--port", "8008", "--reload"]
+#CMD ["uvicorn", "inference_vqvae_api:app", "--host", "0.0.0.0", "--port", "8008", "--reload"]
+
+# 預設運行指令，啟動 Gunicorn
+CMD ["gunicorn", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "inference_vqvae_api:app", "--bind", "0.0.0.0:8000", "--timeout", "120"]

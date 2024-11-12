@@ -18,5 +18,8 @@ ENV PATH=/opt/conda/envs/vqvae/bin:$PATH
 
 # 設置工作目錄
 WORKDIR /code
-CMD ["uvicorn", "train_vqvae_api:app", "--host", "0.0.0.0", "--port", "8008", "--reload"]
+#CMD ["uvicorn", "train_vqvae_api:app", "--host", "0.0.0.0", "--port", "8008", "--reload"]
+
+# 預設運行指令，啟動 Gunicorn
+CMD ["gunicorn", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "train_vqvae_api:app", "--bind", "0.0.0.0:8000", "--timeout", "120"]
 
